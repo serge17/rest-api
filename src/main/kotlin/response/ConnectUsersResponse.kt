@@ -1,6 +1,10 @@
 package org.company.response
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class ConnectUsersResponse(
+    @JsonProperty("success")
     val success: Boolean,
-    val error: String
+    @JsonProperty("error")
+    val error: String,
 )

@@ -1,117 +1,104 @@
 package org.company.service
 
 import org.company.Util
-import org.company.exception.UserNotFoundException
+import org.company.extension.toPageRequest
+import org.company.extension.toUserModel
+import org.company.extension.toUserResponse
 import org.company.model.Friends
 import org.company.model.User
 import org.company.repository.FriendsRepository
 import org.company.repository.UserRepository
+import org.company.request.CreateUserRequest
+import org.company.request.GetUsersRequest
 import org.company.response.ConnectUsersResponse
+import org.company.response.DistanceResponse
+import org.company.response.UserNullableResponse
+import org.company.response.UserResponse
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.domain.Page
 import org.springframework.stereotype.Service
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @Service
 class UserService(
     @Autowired
     private val userRepository: UserRepository,
     @Autowired
-    private val friendsRepository: FriendsRepository
+    private val friendsRepository: FriendsRepository,
 ) {
-
-    fun findDistance(firstUserId: Long, secondUserId: Long) : Int {
+    fun findDistance(
+        firstUserId: Long,
+        secondUserId: Long,
+    ): DistanceResponse {
         val firstUserOptional = userRepository.findById(firstUserId)
         val secondUserOptional = userRepository.findById(secondUserId)
 
         if (firstUserOptional.isEmpty) {
-            throw UserNotFoundException(firstUserId)
+            return DistanceResponse(0, true, "User with id $firstUserId not found.")
         }
         if (secondUserOptional.isEmpty) {
-            throw UserNotFoundException(secondUserId)
+            return DistanceResponse(0, true, "User with id $secondUserId not found.")
         }
 
-        val dist = bfs(firstUserId, secondUserId)
-        return dist
+        val dist = Util.bfs(firstUserId, secondUserId, friendsRepository)
+
+        if (dist == 0) {
+            return DistanceResponse(dist, true, "Users are not connected or their distance is greater than ${Util.MAX_DIST}")
+        }
+        return DistanceResponse(dist, false, "")
     }
 
-    fun connectUsers(firstUserId: Long, secondUserId: Long): ConnectUsersResponse {
-        friendsRepository.save(Friends(firstUserId, secondUserId))
-        return ConnectUsersResponse(true, "")
+    fun connectUsers(
+        firstUserId: Long,
+        secondUserId: Long,
+    ): ConnectUsersResponse {
+        try {
+            friendsRepository.save(Friends(firstUserId, secondUserId))
+            return ConnectUsersResponse(true, "")
+        } catch (e: Exception) {
+            return ConnectUsersResponse(false, e.message ?: "Could not connect users.")
+        }
     }
 
-    fun getById(id: Long): User {
+    fun getById(id: Long): UserNullableResponse {
         val userOptional = userRepository.findById(id)
         if (userOptional.isEmpty) {
-            throw UserNotFoundException(id)
+            return UserNullableResponse(false)
         }
-        return userOptional.get()
+        return UserNullableResponse(true, userOptional.get().toUserResponse())
     }
 
-    fun getAll(): List<User> {
-        return userRepository.findAll()
+    fun getAll(getUsersRequest: GetUsersRequest): Page<UserResponse> {
+        return userRepository.findAll(getUsersRequest.toPageRequest()).map { it.toUserResponse() }
     }
 
-    fun saveUser(user: User): User {
-        return userRepository.save(user)
+    fun saveUser(createUserRequest: CreateUserRequest): UserResponse {
+        return userRepository.save(createUserRequest.toUserModel()).toUserResponse()
     }
 
-    fun replaceUser(newUser: User, id: Long): User {
+    fun replaceUser(
+        newUser: CreateUserRequest,
+        id: Long,
+    ): UserResponse {
         val userOptional = userRepository.findById(id)
 
         if (userOptional.isEmpty) {
             val createdUser = User(newUser.name, newUser.email, newUser.phone, id)
             userRepository.save(createdUser)
-            return createdUser
+            return createdUser.toUserResponse()
         } else {
             val user = userOptional.get()
             user.name = newUser.name
             user.email = newUser.email
             user.phone = newUser.phone
+            user.updatedAtUtc = OffsetDateTime.now(ZoneOffset.UTC)
             userRepository.save(user)
-            return user
+            return user.toUserResponse()
         }
     }
 
     fun deleteUser(id: Long) {
         userRepository.deleteById(id)
-    }
-
-    private fun bfs(first: Long, second: Long, maxDist: Int = Util.maxDist): Int {
-        var dist = 0
-
-        var set = mutableSetOf(first)
-        val examined = mutableSetOf<Long>()
-
-        var tempSet = mutableSetOf<Long>()
-
-        while(set.isNotEmpty() && dist <= maxDist) {
-            set.forEach {
-                if (it == second) {
-                    return dist
-                } else {
-                    val friendsIds = getFriendsIds(it).filter { !examined.contains(it) }
-                    examined.addAll(friendsIds)
-                    tempSet.addAll(friendsIds)
-                }
-            }
-
-            set = tempSet
-            tempSet = mutableSetOf()
-            dist +=1
-        }
-        return 0
-    }
-
-    private fun getFriendsIds(userId: Long): Set<Long> {
-        val set = mutableSetOf<Long>()
-        val firstFriendsList = friendsRepository.findByFirstOrSecond(userId, userId)
-
-        firstFriendsList.forEach {
-            if (it.first != userId) {
-                set.add(it.first)
-            } else {
-                set.add(it.second)
-            }
-        }
-        return set
     }
 }

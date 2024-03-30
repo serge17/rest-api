@@ -8,5 +8,5 @@ data class DistanceResponse(
     @JsonProperty("error")
     val error: Boolean,
     @JsonProperty("message")
-    val message: String
+    val message: String,
 )

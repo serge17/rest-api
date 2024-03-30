@@ -28,13 +28,11 @@ class UserControllerIntegrationTest(
     @LocalServerPort
     private val port = 0
 
-    val restTemplate: TestRestTemplate = TestRestTemplate()
-
-    private lateinit var headers: HttpHeaders
+    private val restTemplate: TestRestTemplate = TestRestTemplate()
+    private val headers: HttpHeaders = HttpHeaders()
 
     @BeforeAll
     fun init() {
-        headers = HttpHeaders()
         headers.contentType = MediaType.APPLICATION_JSON
     }
 

@@ -1,5 +1,6 @@
 package org.company.controller
 
+import org.company.cache.UserServiceCache
 import org.company.request.CreateUserRequest
 import org.company.request.GetUsersRequest
 import org.company.response.ConnectUsersResponse
@@ -23,12 +24,14 @@ import org.springframework.web.bind.annotation.RestController
 class UserController(
     @Autowired
     private val userService: UserService,
+    @Autowired
+    private val userServiceCache: UserServiceCache,
 ) {
     @GetMapping("/{id}")
     fun one(
         @PathVariable id: Long,
     ): UserNullableResponse {
-        return userService.getById(id)
+        return userServiceCache.getById(id)
     }
 
     @GetMapping
